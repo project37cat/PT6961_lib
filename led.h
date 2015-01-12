@@ -1,6 +1,6 @@
 // управление LED дисплеем с контроллером PT6961 (7 знаков по 7 сегментов, от китайского DVD плеера)
 // "led.h" версия 1 от 22.10.2014
-// компилятор HI-TECH C PRO PIC18 V9.63PL3
+// компилятор HI-TECH C PRO PIC18
 //
 //	//пример использования библиотеки:
 //
@@ -24,9 +24,9 @@
 
 // программный SPI
 // работает на любых трех ногах
-#define DAT RD2 //DIN
-#define CLK RD1
-#define STB RD0
+#define DAT RD2 // data pin
+#define CLK RD1 // clock pin
+#define STB RD0 // strobe pin
 
 
 char ledbuff[13]; //видеобуфер
@@ -60,7 +60,7 @@ for(unsigned char i=0; i<8; i++)
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-led_dimm(unsigned char vol) //vol 0..7 - яркость
+void led_dimm(unsigned char vol) //vol 0..7 - яркость
 {
 STB=0;
 led_data(0b10001000+vol);
@@ -98,7 +98,7 @@ STB=1;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-led_digit(unsigned char digit, unsigned char sign) // в позиции 1..7 нарисовать символ
+void led_digit(unsigned char digit, unsigned char sign) // в позиции 1..7 нарисовать символ
 {
 unsigned char tmp=0;
 switch(sign) //по полученному коду символа выбираем код сегментов
@@ -127,7 +127,7 @@ for(unsigned char i=0; i<14; i=i+2) //передача кода в буфер
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-led_print(unsigned char digit, const char *string) //вывод строки на дисплей //digit - знакоместо 1..7
+void led_print(unsigned char digit, const char *string) //вывод строки на дисплей //digit - знакоместо 1..7
 {
 for(unsigned char i=0; string[i]!='\0'; i++)
 led_digit(i+digit,string[i]);
