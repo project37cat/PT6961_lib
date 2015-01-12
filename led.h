@@ -126,10 +126,9 @@ for(unsigned char i=0; i<14; i=i+2) //передача кода в буфер
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void led_print(unsigned char digit, const char *string) //вывод строки на дисплей //digit - знакоместо 1..7
+void led_print(unsigned char digit, const char *string) //вывод строки //digit - знакоместо 1..7
 {
-for(unsigned char i=0; string[i]!='\0'; i++)
-led_digit(i+digit,string[i]);
+for(unsigned char i=0; string[i]!='\0'; i++) led_digit(i+digit,string[i]);
 }
 
 
