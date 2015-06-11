@@ -1,54 +1,55 @@
-// управление LED дисплеем с контроллером PT6961 (7 знаков по 7 сегментов, от китайского DVD плеера)
-// "led.h" версия 1 от 22.10.2014
-// компилятор HI-TECH C PRO PIC18
-//
-//	//пример использования библиотеки:
-//
-//	void main(void)
-//	{
-//	led_init();
-//
-//	while(1)
-// 		{
-//		led_print(1,"1234567");
-//		led_update();
-//		__delay_ms(30);
-//		}
-//	}
-//
+// PT6961 library v2  toxcat 2015 copyleft
 
 
-#define set_bit(ADDRESS,BIT) (ADDRESS |= (1<<BIT))
-#define clear_bit(ADDRESS,BIT) (ADDRESS &= ~(1<<BIT))
+#define _XTAL_FREQ 8000000 //for delay functions
 
 
-// программный SPI
-// работает на любых трех ногах
-#define DAT RD2 // data pin
-#define CLK RD1 // clock pin
-#define STB RD0 // strobe pin
+/* software SPI */
+
+#define DAT      RB3
+#define DAT_PIN  TRISB3
+
+#define CLK      RB2
+#define CLK_PIN  TRISB2
+
+#define STB      RB1
+#define STB_PIN  TRISB1
 
 
-char ledbuff[13]; //видеобуфер
+#define SET_BIT(reg, bit) (reg |= (1<<bit))
+#define CLR_BIT(reg, bit) (reg &= (~(1<<bit)))
 
-const unsigned char ce=0b1000000; //"прочерк"
-const unsigned char cn=0b0000000; //"пробел"
-const unsigned char c0=0b0111111; //"0"
-const unsigned char c1=0b0000110; //"1"
-const unsigned char c2=0b1110011; //"2"
-const unsigned char c3=0b1110110; //"3"
-const unsigned char c4=0b1001110; //"4"
-const unsigned char c5=0b1111100; //"5"
-const unsigned char c6=0b1111101; //"6"
-const unsigned char c7=0b0100110; //"7"
-const unsigned char c8=0b1111111; //"8"
-const unsigned char c9=0b1111110; //"9"
+
+typedef unsigned char uint8_t;
+
+
+char ledbuff[14];
+
+const uint8_t ce=0b1000000; //"-"
+const uint8_t cn=0b0000000; //space
+const uint8_t c0=0b0111111; //"0"
+const uint8_t c1=0b0000110; //"1"
+const uint8_t c2=0b1110011; //"2"
+const uint8_t c3=0b1110110; //"3"
+const uint8_t c4=0b1001110; //"4"
+const uint8_t c5=0b1111100; //"5"
+const uint8_t c6=0b1111101; //"6"
+const uint8_t c7=0b0100110; //"7"
+const uint8_t c8=0b1111111; //"8"
+const uint8_t c9=0b1111110; //"9"
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void led_data(unsigned char data) //последовательная передача байта в порт начиная с нулевого бита
+void delay_ms(uint8_t val)
 {
-for(unsigned char i=0; i<8; i++)
+while(val--) __delay_ms(1);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void led_data(uint8_t data) //последовательная передача байта в порт начиная с нулевого бита
+{
+for(uint8_t i=0; i<8; i++)
 	{
 	if(data & 0x01) DAT=1;
 	else DAT=0;
@@ -60,22 +61,17 @@ for(unsigned char i=0; i<8; i++)
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void led_dimm(unsigned char vol) //vol 0..7 - яркость
-{
-STB=0;
-led_data(0b10001000+vol);
-STB=1;
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
 void led_init(void) //инициализация PT6961
 {
+DAT_PIN=0;
+CLK_PIN=0;
+STB_PIN=0;
+
 DAT=0;
 CLK=1;
 STB=1;
 
-__delay_ms(30); //в даташите рекомендуют 200мс
+delay_ms(200);
 
 STB=0;
 led_data(0b01000000); //command 2
@@ -83,7 +79,15 @@ STB=1;
 
 STB=0;
 led_data(0b11000000); //command 3
-for(unsigned char i=0; i<13; i++) led_data(0); //очистка дисплея
+for(uint8_t i=0; i<14; i++) led_data(0); //очистка дисплея
+STB=1;
+
+STB=0;
+led_data(0b00000011); //command 1  //биты 0..1 режим (11 - 7 digits, 11 segments)
+STB=1;
+
+STB=0;
+led_data(0b10000011); //command 4  //бит 3 - display OFF  //биты 0..2 яркость
 STB=1;
 
 STB=0;
@@ -91,15 +95,17 @@ led_data(0b00000011); //command 1
 STB=1;
 
 STB=0;
-led_data(0b10001000); //command 4  //биты 0..2 регулировка яркости (000..111)
+led_data(0b10001011); //command 4  //display ON
 STB=1;
 }
 
 
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void led_digit(unsigned char digit, unsigned char sign) // в позиции 1..7 нарисовать символ
+led_digit(uint8_t pos, uint8_t sign) // в позиции 1..7 нарисовать символ
 {
-unsigned char tmp=0;
+uint8_t tmp=0;
+
 switch(sign) //по полученному коду символа выбираем код сегментов
 	{
 	case 32: tmp=cn; break; //пробел
@@ -116,19 +122,19 @@ switch(sign) //по полученному коду символа выбира�
 	default: tmp=ce; break; //прочерк если неподдерживаемый символ
 	}
 
-for(unsigned char i=0; i<14; i=i+2) //передача кода в буфер
+for(uint8_t i=0; i<14; i=i+2) //передача кода в буфер
 	{
-	if(tmp & 0x01) set_bit(ledbuff[i],digit);
-	else clear_bit(ledbuff[i],digit);
+	if(tmp & 0x01) SET_BIT(ledbuff[i],pos);
+	else CLR_BIT(ledbuff[i],pos);
 	tmp>>=0x01;
 	}
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void led_print(unsigned char digit, const char *string) //вывод строки //digit - знакоместо 1..7
+led_print(uint8_t pos, const char *str) //вывод строки на дисплей //pos - позиция 1..7
 {
-for(unsigned char i=0; string[i]!='\0'; i++) led_digit(i+digit,string[i]);
+for(uint8_t i=0; str[i]; i++) led_digit(i+pos, str[i]);
 }
 
 
@@ -137,6 +143,6 @@ void led_update(void) //обновление картинки - отправля
 {
 STB=0;
 led_data(0b11000000); //command 3
-for(unsigned char i=0; i<13; i++) led_data(ledbuff[i]);
+for(uint8_t i=0; i<14; i++) led_data(ledbuff[i]);
 STB=1;
 }
