@@ -1,4 +1,4 @@
-// PT6961 library v2  toxcat 2015 copyleft
+// PT6961 display library v3  // toxcat 2015 copyleft  // HI-TECH C compiler
 
 
 #define _XTAL_FREQ 8000000 //for delay functions
@@ -20,10 +20,10 @@
 #define CLR_BIT(reg, bit) (reg &= (~(1<<bit)))
 
 
-typedef unsigned char uint8_t;
+typedef unsigned char uint8_t; //stdint
 
 
-char ledbuff[14];
+char ledbuff[14]; //display buffer
 
 const uint8_t ce=0b1000000; //"-"
 const uint8_t cn=0b0000000; //space
@@ -47,7 +47,7 @@ while(val--) __delay_ms(1);
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void led_data(uint8_t data) //последовательная передача байта в порт начиная с нулевого бита
+void led_data(uint8_t data) //send a byte to the SPI
 {
 for(uint8_t i=0; i<8; i++)
 	{
@@ -61,8 +61,19 @@ for(uint8_t i=0; i<8; i++)
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void led_init(void) //инициализация PT6961
+void led_comm(uint8_t data) //send a command
 {
+STB=0; //strobe
+led_data(data);
+STB=1;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void led_init(void)
+{
+/* init the MCU pins */
+
 DAT_PIN=0;
 CLK_PIN=0;
 STB_PIN=0;
@@ -73,56 +84,45 @@ STB=1;
 
 delay_ms(200);
 
-STB=0;
-led_data(0b01000000); //command 2
-STB=1;
+/* PT6961 initial setting */
+
+led_comm(0b01000000); //command 2  //b2 0 - increment address  //b1..b0 00 - data write mode
 
 STB=0;
-led_data(0b11000000); //command 3
-for(uint8_t i=0; i<14; i++) led_data(0); //очистка дисплея
+led_data(0b11000000); //command 3  //b3..b0 - set RAM address 0x00
+for(uint8_t i=0; i<14; i++) led_data(0); //clear the Display RAM (clear screen)
 STB=1;
 
-STB=0;
-led_data(0b00000011); //command 1  //биты 0..1 режим (11 - 7 digits, 11 segments)
-STB=1;
-
-STB=0;
-led_data(0b10000011); //command 4  //бит 3 - display OFF  //биты 0..2 яркость
-STB=1;
-
-STB=0;
-led_data(0b00000011); //command 1
-STB=1;
-
-STB=0;
-led_data(0b10001011); //command 4  //display ON
-STB=1;
+led_comm(0b00000011); //command 1  //b0..b1 display mode (11 - 7 digits, 11 segments)
+led_comm(0b10000011); //command 4  //b3 - display ON/OFF  //b0..b2 dimmer (brightness)
+led_comm(0b00000011); //command 1
+led_comm(0b10001011); //command 4  //display ON
 }
 
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-led_digit(uint8_t pos, uint8_t sign) // в позиции 1..7 нарисовать символ
+led_digit(uint8_t pos, uint8_t sign) //print one digit  //position 1..7
 {
 uint8_t tmp=0;
 
-switch(sign) //по полученному коду символа выбираем код сегментов
+switch(sign) //select a character code
 	{
-	case 32: tmp=cn; break; //пробел
-	case 48: tmp=c0; break;
-	case 49: tmp=c1; break;
-	case 50: tmp=c2; break;
-	case 51: tmp=c3; break;
-	case 52: tmp=c4; break;
-	case 53: tmp=c5; break;
-	case 54: tmp=c6; break;
-	case 55: tmp=c7; break;
-	case 56: tmp=c8; break;
-	case 57: tmp=c9; break;
-	default: tmp=ce; break; //прочерк если неподдерживаемый символ
+	case 32: tmp=cn; break; //space
+	case 48: tmp=c0; break; //"0"
+	case 49: tmp=c1; break; //"1"
+	case 50: tmp=c2; break; //"2"
+	case 51: tmp=c3; break; //"3"
+	case 52: tmp=c4; break; //"4"
+	case 53: tmp=c5; break; //"5"
+	case 54: tmp=c6; break; //"6"
+	case 55: tmp=c7; break; //"7"
+	case 56: tmp=c8; break; //"8"
+	case 57: tmp=c9; break; //"9"
+	default: tmp=ce; break; //dash if unsupported symbol
 	}
 
-for(uint8_t i=0; i<14; i=i+2) //передача кода в буфер
+for(uint8_t i=0; i<14; i=i+2) //send code in buffer
 	{
 	if(tmp & 0x01) SET_BIT(ledbuff[i],pos);
 	else CLR_BIT(ledbuff[i],pos);
@@ -132,17 +132,22 @@ for(uint8_t i=0; i<14; i=i+2) //передача кода в буфер
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-led_print(uint8_t pos, const char *str) //вывод строки на дисплей //pos - позиция 1..7
+led_print(uint8_t pos, const char *str) //print a string  //position 1..7
 {
 for(;*str;) led_digit(pos++,*str++);
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void led_update(void) //обновление картинки - отправляем весь буфер в порт
+void led_update(void)
 {
+led_comm(0b01000000); //command 2
+
 STB=0;
 led_data(0b11000000); //command 3
-for(uint8_t i=0; i<14; i++) led_data(ledbuff[i]);
+for(uint8_t i=0; i<14; i++) led_data(ledbuff[i]); //send buffer to display
 STB=1;
+
+led_comm(0b00000011); //command 1
+led_comm(0b10001011); //command 4
 }
